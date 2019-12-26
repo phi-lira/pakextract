@@ -251,11 +251,11 @@ read_directory(FILE *fd, int listOnly, int* num_entries)
 }
 
 static void
-extract_compressed(FILE* in, directory *d)
+extract_compressed(FILE* in, const char* file_name, directory *d)
 {
 	FILE *out;
 
-	if ((out = fopen(d->file_name, "w")) == NULL)
+	if ((out = fopen(file_name, "w")) == NULL)
 	{
 		perror("Couldn't open outputfile");
 		return;
@@ -334,9 +334,9 @@ extract_compressed(FILE* in, directory *d)
 }
 
 static void
-extract_raw(FILE* in, directory *d)
+extract_raw(FILE* in, const char* file_name, directory *d)
 {
-	FILE* out = fopen(d->file_name, "w");
+	FILE* out = fopen(file_name, "w");
 	if (out == NULL)
 	{
 		perror("Could open the outputfile");
@@ -374,23 +374,30 @@ extract_raw(FILE* in, directory *d)
  *         the pak to be extracted
  */
 static void
-extract_files(FILE *fd, directory *dirs, int num_entries)
+extract_files(FILE *fd, directory *dirs, int num_entries, int lzma_compressed)
 {
 	int i;
+	char* file_name = NULL;
 
 	for(i=0; i<num_entries; ++i)
 	{
 		directory* d = &dirs[i];
 	    mktree(d->file_name);
+	    file_name = d->file_name;
+
+	    if (lzma_compressed == 1)
+	    {
+	    	file_name = strcat(file_name, ".7z");
+	    }
 
 		if(d->is_compressed)
 		{
 			assert((pak_mode == PAK_MODE_DK) && "Only Daikatana paks contain compressed files!");
-			extract_compressed(fd, d);
+			extract_compressed(fd, file_name, d);
 		}
 		else
 		{
-			extract_raw(fd, d);
+			extract_raw(fd, file_name, d);
 		}
 	}
 }
@@ -416,6 +423,7 @@ main(int argc, char *argv[])
 	int list_only = 0;
 	int i = 0;
 	int num_entries = 0;
+	int lzma_compressed = 0;
 
 	/* Correct usage? */
 	if (argc < 2)
@@ -461,6 +469,12 @@ main(int argc, char *argv[])
 		exit(-1);
 	}
 
+	// file entries are Q2 PAK and lzma compressed
+	if (pak_mode == PAK_MODE_Q2 && strstr(filename, ".pakz"))
+	{
+		lzma_compressed = 1;
+	}
+
 	/* Open the pak file */
 	fd = fopen(filename, "r");
 	if (fd == NULL)
@@ -496,7 +510,7 @@ main(int argc, char *argv[])
 	if (!list_only)
 	{
 		/* And now extract the files */
-		extract_files(fd, d, num_entries);
+		extract_files(fd, d, num_entries, lzma_compressed);
 	}
 
 	/* cleanup */
